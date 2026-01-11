@@ -9,7 +9,7 @@
 <body>
   <header>
     <h1>Shift Scheduler</h1>
-    <p>Generate ODC / Hospital / Weekend rotations + iCal export.</p>
+    <p>Generate Hospital / ODC / OFF + Weekends + iCal export.</p>
   </header>
 
   <main class="grid">
@@ -32,7 +32,7 @@
       <label>
         Lane Week Pattern
         <select id="lanePattern">
-          <option value="2">Every other week</option>
+          <option value="2" selected>Every other week</option>
           <option value="3">Every 3rd week</option>
           <option value="4">Every 4th week</option>
         </select>
@@ -46,7 +46,12 @@
 
       <hr/>
 
-      <h3>Hospital Rotation</h3>
+      <h3>Rotation (Hospital / ODC / OFF)</h3>
+      <label>
+        Rotation order (comma-separated)
+        <input type="text" id="rotationOrder" value="Reedy,Bargo,Croce"/>
+      </label>
+
       <label>
         Hospital Shift Hours
         <input type="time" id="hospStart" value="07:00"/>
@@ -54,34 +59,26 @@
       </label>
 
       <label>
-        Rotation order (comma-separated)
-        <input type="text" id="rotationOrder" value="Reedy,Bargo,Croce"/>
-      </label>
-
-      <label>
-        Rotation Cycle (weeks)
-        <input type="number" id="rotationWeeks" value="3" min="1" max="12"/>
-      </label>
-
-      <hr/>
-
-      <h3>ODC Rotation</h3>
-      <label>
-        ODC Hours
+        ODC Shift Hours
         <input type="time" id="odcStart" value="07:00"/>
         <input type="time" id="odcEnd" value="17:00"/>
       </label>
 
       <label class="checkbox">
-        <input type="checkbox" id="hideODCWhenLane" checked/>
-        Hide ODC (Reedy/Bargo/Croce) on Lane weeks (Lane precedence)
+        <input type="checkbox" id="showOff" checked/>
+        Show OFF events (weekday blocks)
+      </label>
+
+      <label class="checkbox">
+        <input type="checkbox" id="doubleOffOnLaneWeeks" checked/>
+        On Lane weeks, ALSO keep the normal OFF person OFF (can result in two OFF blocks)
       </label>
 
       <hr/>
 
       <h3>Weekends</h3>
       <label>
-        Weekend Start
+        Weekend Start (Saturday)
         <input type="time" id="weekendStart" value="06:00"/>
       </label>
       <label>
@@ -108,7 +105,7 @@
   </main>
 
   <footer>
-    <small>Made for rotation scheduling — runs fully in your browser.</small>
+    <small>Runs fully in your browser. Host on GitHub Pages.</small>
   </footer>
 
   <script src="app.js"></script>
