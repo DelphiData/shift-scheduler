@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Shift Scheduler</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>Shift Scheduler</h1>
+    <p>Generate ODC / Hospital / Weekend rotations + iCal export.</p>
+  </header>
+
+  <main class="grid">
+    <section class="card">
+      <h2>Parameters</h2>
+
+      <label>
+        Start date (Monday)
+        <input type="date" id="startDate" value="2026-02-02"/>
+      </label>
+
+      <label>
+        Duration (years)
+        <input type="number" id="years" value="2" min="1" max="10"/>
+      </label>
+
+      <hr/>
+
+      <h3>ODC Lane</h3>
+      <label>
+        Lane Week Pattern
+        <select id="lanePattern">
+          <option value="2">Every other week</option>
+          <option value="3">Every 3rd week</option>
+          <option value="4">Every 4th week</option>
+        </select>
+      </label>
+
+      <label>
+        Lane Hours
+        <input type="time" id="laneStart" value="07:00"/>
+        <input type="time" id="laneEnd" value="17:00"/>
+      </label>
+
+      <hr/>
+
+      <h3>Hospital Rotation</h3>
+      <label>
+        Hospital Shift Hours
+        <input type="time" id="hospStart" value="07:00"/>
+        <input type="time" id="hospEnd" value="23:59"/>
+      </label>
+
+      <label>
+        Rotation order (comma-separated)
+        <input type="text" id="rotationOrder" value="Reedy,Bargo,Croce"/>
+      </label>
+
+      <label>
+        Rotation Cycle (weeks)
+        <input type="number" id="rotationWeeks" value="3" min="1" max="12"/>
+      </label>
+
+      <hr/>
+
+      <h3>ODC Rotation</h3>
+      <label>
+        ODC Hours
+        <input type="time" id="odcStart" value="07:00"/>
+        <input type="time" id="odcEnd" value="17:00"/>
+      </label>
+
+      <label class="checkbox">
+        <input type="checkbox" id="hideODCWhenLane" checked/>
+        Hide ODC (Reedy/Bargo/Croce) on Lane weeks (Lane precedence)
+      </label>
+
+      <hr/>
+
+      <h3>Weekends</h3>
+      <label>
+        Weekend Start
+        <input type="time" id="weekendStart" value="06:00"/>
+      </label>
+      <label>
+        Weekend End (Sunday)
+        <input type="time" id="weekendEnd" value="23:59"/>
+      </label>
+
+      <label>
+        Insert Lane every Nth weekend
+        <input type="number" id="laneWeekendEvery" value="4" min="1" max="12"/>
+      </label>
+
+      <div class="row">
+        <button id="generateBtn">Generate Schedule</button>
+        <button id="downloadBtn" disabled>Download iCal</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Preview</h2>
+      <div id="summary"></div>
+      <div id="preview"></div>
+    </section>
+  </main>
+
+  <footer>
+    <small>Made for rotation scheduling — runs fully in your browser.</small>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
