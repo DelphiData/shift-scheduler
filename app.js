@@ -10,10 +10,6 @@ function addDays(date, days) {
   return d;
 }
 
-function formatDateLocal(d) {
-  return d.toISOString().split("T")[0];
-}
-
 function pad(n) {
   return String(n).padStart(2, "0");
 }
@@ -24,30 +20,39 @@ function toICSDateTime(d) {
 }
 
 function buildEvent({ title, start, end }) {
-  return {
-    title,
-    start,
-    end,
-  };
+  return { title, start, end };
 }
+
+// Rotation model:
+// - Weekly rotation across `people`
+// - Hospital = people[w % n]
+// - ODC     = people[(w + 1) % n]
+// - OFF     = people[(w + 2) % n]   (for n=3; generalized for n>=3)
+//
+// Lane rule:
+// - Lane replaces the ODC block on lane weeks
+// - The would-be ODC person becomes OFF on those weeks
+// - Optionally keep normal OFF as OFF too (can create 2 OFF blocks)
 
 // ---------- Generator ----------
 function generateSchedule(params) {
   const {
     startDate,
     years,
+    rotationOrder,
+
+    hospStartTime,
+    hospEndTime,
+
+    odcStartTime,
+    odcEndTime,
+
     lanePatternWeeks,
     laneStartTime,
     laneEndTime,
 
-    hospStartTime,
-    hospEndTime,
-    rotationOrder,
-    rotationWeeks,
-
-    odcStartTime,
-    odcEndTime,
-    hideODCWhenLane,
+    showOff,
+    doubleOffOnLaneWeeks,
 
     weekendStartTime,
     weekendEndTime,
@@ -61,31 +66,36 @@ function generateSchedule(params) {
   const end = addDays(start, totalDays);
 
   const people = rotationOrder;
+  const n = people.length;
+
+  if (n < 3) {
+    throw new Error("Rotation order must include at least 3 people (Hospital / ODC / OFF).");
+  }
+
   const weeksTotal = Math.ceil(totalDays / 7);
 
-  function personForWeek(weekIndex) {
-    return people[weekIndex % rotationWeeks];
-  }
+  const hospitalForWeek = (w) => people[w % n];
+  const odcForWeek = (w) => people[(w + 1) % n];
+  const offForWeek = (w) => people[(w + 2) % n];
 
-  function isLaneWeek(weekIndex) {
-    return (weekIndex % lanePatternWeeks) === 0;
-  }
-
-  function isLaneWeekend(weekIndex) {
-    return (weekIndex % laneWeekendEvery) === 0;
-  }
+  const isLaneWeek = (w) => (w % lanePatternWeeks) === 0;
+  const isLaneWeekend = (w) => (w % laneWeekendEvery) === 0;
 
   for (let week = 0; week < weeksTotal; week++) {
     const weekStart = addDays(start, week * 7);
-    const person = personForWeek(week);
+
+    const hospPerson = hospitalForWeek(week);
+    const odcPerson = odcForWeek(week);
+    const offPerson = offForWeek(week);
+
+    const laneWeek = isLaneWeek(week);
 
     // --- Weekday shifts (Mon-Fri) ---
     for (let day = 0; day < 5; day++) {
       const date = addDays(weekStart, day);
-
       if (date > end) break;
 
-      // Hospital shift (always)
+      // Hospital (always)
       {
         const st = new Date(date);
         const et = new Date(date);
@@ -95,30 +105,15 @@ function generateSchedule(params) {
         et.setHours(he.h, he.m, 0, 0);
 
         shifts.push(buildEvent({
-          title: `HOSPITAL ${person}`,
+          title: `HOSPITAL ${hospPerson}`,
           start: st,
           end: et
         }));
       }
 
-      // ODC shift (unless hidden by Lane precedence)
-      if (!(hideODCWhenLane && isLaneWeek(week))) {
-        const st = new Date(date);
-        const et = new Date(date);
-        const os = parseTime(odcStartTime);
-        const oe = parseTime(odcEndTime);
-        st.setHours(os.h, os.m, 0, 0);
-        et.setHours(oe.h, oe.m, 0, 0);
-
-        shifts.push(buildEvent({
-          title: `ODC ${person}`,
-          start: st,
-          end: et
-        }));
-      }
-
-      // Lane shift (only on lane weeks)
-      if (isLaneWeek(week)) {
+      // ODC / Lane logic
+      if (laneWeek) {
+        // Lane takes ODC slot
         const st = new Date(date);
         const et = new Date(date);
         const ls = parseTime(laneStartTime);
@@ -131,10 +126,70 @@ function generateSchedule(params) {
           start: st,
           end: et
         }));
+
+        // Would-be ODC person is OFF (weekday block)
+        if (showOff) {
+          const ost = new Date(date);
+          const oet = new Date(date);
+          const os = parseTime(odcStartTime);
+          const oe = parseTime(odcEndTime);
+          ost.setHours(os.h, os.m, 0, 0);
+          oet.setHours(oe.h, oe.m, 0, 0);
+
+          shifts.push(buildEvent({
+            title: `OFF ${odcPerson}`,
+            start: ost,
+            end: oet
+          }));
+        }
+
+        // Optionally: keep the normal OFF person off too
+        if (showOff && doubleOffOnLaneWeeks) {
+          const ost = new Date(date);
+          const oet = new Date(date);
+          const os = parseTime(odcStartTime);
+          const oe = parseTime(odcEndTime);
+          ost.setHours(os.h, os.m, 0, 0);
+          oet.setHours(oe.h, oe.m, 0, 0);
+
+          shifts.push(buildEvent({
+            title: `OFF ${offPerson}`,
+            start: ost,
+            end: oet
+          }));
+        }
+      } else {
+        // Normal ODC person works
+        const st = new Date(date);
+        const et = new Date(date);
+        const os = parseTime(odcStartTime);
+        const oe = parseTime(odcEndTime);
+        st.setHours(os.h, os.m, 0, 0);
+        et.setHours(oe.h, oe.m, 0, 0);
+
+        shifts.push(buildEvent({
+          title: `ODC ${odcPerson}`,
+          start: st,
+          end: et
+        }));
+
+        // Normal OFF person
+        if (showOff) {
+          const ost = new Date(date);
+          const oet = new Date(date);
+          ost.setHours(os.h, os.m, 0, 0);
+          oet.setHours(oe.h, oe.m, 0, 0);
+
+          shifts.push(buildEvent({
+            title: `OFF ${offPerson}`,
+            start: ost,
+            end: oet
+          }));
+        }
       }
     }
 
-    // --- Weekend shift (Sat 6am -> Sun 11:59pm) ---
+    // --- Weekend (Sat 6am -> Sun 11:59pm) ---
     const sat = addDays(weekStart, 5);
     const sun = addDays(weekStart, 6);
 
@@ -150,7 +205,7 @@ function generateSchedule(params) {
 
       const weekendTitle = isLaneWeekend(week)
         ? "Weekend Lane"
-        : `Weekend ${person}`;
+        : `Weekend ${hospPerson}`;
 
       shifts.push(buildEvent({
         title: weekendTitle,
@@ -190,27 +245,29 @@ function exportICS(events) {
 let lastEvents = [];
 
 function getParamsFromUI() {
+  const order = document.getElementById("rotationOrder").value
+    .split(",")
+    .map(s => s.trim())
+    .filter(Boolean);
+
   return {
     startDate: document.getElementById("startDate").value,
     years: Number(document.getElementById("years").value),
+
+    rotationOrder: order,
+
+    hospStartTime: document.getElementById("hospStart").value,
+    hospEndTime: document.getElementById("hospEnd").value,
+
+    odcStartTime: document.getElementById("odcStart").value,
+    odcEndTime: document.getElementById("odcEnd").value,
 
     lanePatternWeeks: Number(document.getElementById("lanePattern").value),
     laneStartTime: document.getElementById("laneStart").value,
     laneEndTime: document.getElementById("laneEnd").value,
 
-    hospStartTime: document.getElementById("hospStart").value,
-    hospEndTime: document.getElementById("hospEnd").value,
-
-    rotationOrder: document.getElementById("rotationOrder").value
-      .split(",")
-      .map(s => s.trim())
-      .filter(Boolean),
-
-    rotationWeeks: Number(document.getElementById("rotationWeeks").value),
-
-    odcStartTime: document.getElementById("odcStart").value,
-    odcEndTime: document.getElementById("odcEnd").value,
-    hideODCWhenLane: document.getElementById("hideODCWhenLane").checked,
+    showOff: document.getElementById("showOff").checked,
+    doubleOffOnLaneWeeks: document.getElementById("doubleOffOnLaneWeeks").checked,
 
     weekendStartTime: document.getElementById("weekendStart").value,
     weekendEndTime: document.getElementById("weekendEnd").value,
@@ -240,10 +297,14 @@ function renderPreview(events) {
 }
 
 document.getElementById("generateBtn").addEventListener("click", () => {
-  const params = getParamsFromUI();
-  lastEvents = generateSchedule(params);
-  renderPreview(lastEvents);
-  document.getElementById("downloadBtn").disabled = false;
+  try {
+    const params = getParamsFromUI();
+    lastEvents = generateSchedule(params);
+    renderPreview(lastEvents);
+    document.getElementById("downloadBtn").disabled = false;
+  } catch (err) {
+    alert(err.message || String(err));
+  }
 });
 
 document.getElementById("downloadBtn").addEventListener("click", () => {
