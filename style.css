@@ -41,6 +41,7 @@ input, select {
   border-radius: 8px;
   border: 1px solid #ccc;
   margin-top: 0.25rem;
+  box-sizing: border-box;
 }
 
 hr {
